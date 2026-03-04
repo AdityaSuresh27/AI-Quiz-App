@@ -498,8 +498,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(

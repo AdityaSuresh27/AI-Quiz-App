@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow anyone to read/write OTP codes (needed for signup)
+    match /otp_codes/{email} {
+      allow read, write: if true;
+    }
+    
+    // Users collection - only read/write own user data
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+    
+    // Quizzes - authenticated users can read all, only teachers/admins can create
+    match /quizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+        (request.auth.token.get('role') == 'teacher' || request.auth.token.get('role') == 'admin');
+    }
+    
+    // Questions - authenticated users can read, teachers/admins can write
+    match /quizzes/{quizId}/questions/{questionId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+        (request.auth.token.get('role') == 'teacher' || request.auth.token.get('role') == 'admin');
+    }
+    
+    // Quiz results - users can read/write their own
+    match /quizResults/{resultId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null;
+    }
+  }
+}

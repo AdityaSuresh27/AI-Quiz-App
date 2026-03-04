@@ -6,6 +6,8 @@ import 'config.dart';
 import 'models.dart';
 import 'widgets.dart';
 import 'qr_screens.dart';
+import 'services/auth_provider.dart';
+import 'auth/auth_screens.dart' as auth_screens;
 
 // 1. SPLASH SCREEN
 class SplashScreen extends StatefulWidget {
@@ -552,11 +554,55 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           color: isDark ? AppColors.darkCardBorder : AppColors.lightCardBorder,
                         ),
                       ),
-                      child: IconButton(
-                        onPressed: () {},
-                        icon: Icon(
-                          Icons.notifications_outlined,
-                          color: isDark ? AppColors.darkText : AppColors.lightText,
+                      child: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'logout') {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Sign Out'),
+                                content: const Text('Are you sure you want to sign out?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      Provider.of<AuthProvider>(context, listen: false).signOut();
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const auth_screens.LoginScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'logout',
+                            child: Row(
+                              children: [
+                                Icon(Icons.logout, color: Colors.red),
+                                const SizedBox(width: 8),
+                                const Text('Sign Out'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        child: IconButton(
+                          onPressed: null,
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: isDark ? AppColors.darkText : AppColors.lightText,
+                          ),
                         ),
                       ),
                     ),
