@@ -1,6 +1,8 @@
 //screens.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'config.dart';
 import 'models.dart';
@@ -959,205 +961,225 @@ timerEnabled: _timerEnabled,
 }
 // 8. QUIZ QUESTION SCREEN
 class QuizQuestionScreen extends StatefulWidget {
-final int questionCount;
-final bool timerEnabled;
-const QuizQuestionScreen({
-Key? key,
-required this.questionCount,
-required this.timerEnabled,
-}) : super(key: key);
-@override
-State<QuizQuestionScreen> createState() => _QuizQuestionScreenState();
+  final int questionCount;
+  final bool timerEnabled;
+  final List<QuizQuestion>? questions;
+
+  const QuizQuestionScreen({
+    Key? key,
+    required this.questionCount,
+    required this.timerEnabled,
+    this.questions,
+  }) : super(key: key);
+
+  @override
+  State<QuizQuestionScreen> createState() => _QuizQuestionScreenState();
 }
-class _QuizQuestionScreenState extends State<QuizQuestionScreen> with TickerProviderStateMixin {
-int _currentQuestion = 0;
-int? _selectedAnswer;
-int _timeLeft = 30;
-Timer? _timer;
-late AnimationController _progressController;
-final List<QuizQuestion> _questions = [
-QuizQuestion(
-question: 'What is the capital of France?',
-options: ['London', 'Berlin', 'Paris', 'Madrid'],
-correctAnswer: 2,
-),
-QuizQuestion(
-question: 'Which planet is known as the Red Planet?',
-options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-correctAnswer: 1,
-),
-];
-@override
-void initState() {
-super.initState();
-_progressController = AnimationController(
-vsync: this,
-duration: const Duration(seconds: 30),
-);
-if (widget.timerEnabled) {
-  _startTimer();
-}
-}
-void _startTimer() {
-_progressController.forward();
-_timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-if (_timeLeft > 0) {
-setState(() {
-_timeLeft--;
-});
-} else {
-_nextQuestion();
-}
-});
-}
-void _nextQuestion() {
-if (_currentQuestion < widget.questionCount - 1) {
-setState(() {
-_currentQuestion++;
-_selectedAnswer = null;
-_timeLeft = 30;
-_progressController.reset();
-});
-if (widget.timerEnabled) {
-_progressController.forward();
-}
-} else {
-_finishQuiz();
-}
-}
-void _finishQuiz() {
-_timer?.cancel();
-Navigator.pushReplacement(
-context,
-MaterialPageRoute(
-builder: (context) => const ResultScreen(
-score: 85,
-totalQuestions: 10,
-correctAnswers: 8,
-),
-),
-);
-}
-@override
-void dispose() {
-_timer?.cancel();
-_progressController.dispose();
-super.dispose();
-}
-@override
-Widget build(BuildContext context) {
-final question = _questions[_currentQuestion % _questions.length];
-return Scaffold(
-  appBar: AppBar(
-    title: Text('Question ${_currentQuestion + 1}/${widget.questionCount}'),
-    actions: [
-      if (widget.timerEnabled)
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Text(
-              '$_timeLeft s',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+
+class _QuizQuestionScreenState extends State<QuizQuestionScreen>
+    with TickerProviderStateMixin {
+  int _currentQuestion = 0;
+  int? _selectedAnswer;
+  int _timeLeft = 30;
+  Timer? _timer;
+  late AnimationController _progressController;
+  late final List<QuizQuestion> _questions;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Use questions passed from caller (e.g., QR/AI), or fallback to defaults
+    _questions = widget.questions ??
+        [
+          QuizQuestion(
+            question: 'What is the capital of France?',
+            options: ['London', 'Berlin', 'Paris', 'Madrid'],
+            correctAnswer: 2,
           ),
+          QuizQuestion(
+            question: 'Which planet is known as the Red Planet?',
+            options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
+            correctAnswer: 1,
+          ),
+        ];
+
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    );
+    if (widget.timerEnabled) {
+      _startTimer();
+    }
+  }
+
+  void _startTimer() {
+    _progressController.forward();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_timeLeft > 0) {
+        setState(() {
+          _timeLeft--;
+        });
+      } else {
+        _nextQuestion();
+      }
+    });
+  }
+
+  void _nextQuestion() {
+    if (_currentQuestion < widget.questionCount - 1) {
+      setState(() {
+        _currentQuestion++;
+        _selectedAnswer = null;
+        _timeLeft = 30;
+        _progressController.reset();
+      });
+      if (widget.timerEnabled) {
+        _progressController.forward();
+      }
+    } else {
+      _finishQuiz();
+    }
+  }
+
+  void _finishQuiz() {
+    _timer?.cancel();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultScreen(
+          score: 85,
+          totalQuestions: widget.questionCount,
+          correctAnswers: 8,
         ),
-    ],
-  ),
-  body: Column(
-    children: [
-      if (widget.timerEnabled)
-        AnimatedBuilder(
-          animation: _progressController,
-          builder: (context, child) {
-            return LinearProgressIndicator(
-              value: 1 - _progressController.value,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _timeLeft <= 10 ? AppColors.error : AppColors.primary,
-              ),
-              minHeight: 6,
-            );
-          },
-        ),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? AppColors.darkCard
-                      : AppColors.lightCard,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final question = _questions[_currentQuestion % _questions.length];
+    return Scaffold(
+      appBar: AppBar(
+        title:
+            Text('Question ${_currentQuestion + 1}/${widget.questionCount}'),
+        actions: [
+          if (widget.timerEnabled)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16),
                 child: Text(
-                  question.question,
+                  '$_timeLeft s',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              ...List.generate(question.options.length, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: QuizOptionTile(
-                    option: question.options[index],
-                    index: index,
-                    selected: _selectedAnswer == index,
-                    onTap: () {
-                      setState(() {
-                        _selectedAnswer = index;
-                      });
-                    },
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (widget.timerEnabled)
+            AnimatedBuilder(
+              animation: _progressController,
+              builder: (context, child) {
+                return LinearProgressIndicator(
+                  value: 1 - _progressController.value,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _timeLeft <= 10 ? AppColors.error : AppColors.primary,
                   ),
+                  minHeight: 6,
                 );
-              }),
-            ],
+              },
+            ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.darkCard
+                          : AppColors.lightCard,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      question.question,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ...List.generate(question.options.length, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: QuizOptionTile(
+                        option: question.options[index],
+                        index: index,
+                        selected: _selectedAnswer == index,
+                        onTap: () {
+                          setState(() {
+                            _selectedAnswer = index;
+                          });
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _nextQuestion,
-                child: const Text('Skip'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _nextQuestion,
+                    child: const Text('Skip'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: CustomButton(
+                    text: _currentQuestion == widget.questionCount - 1
+                        ? 'Finish'
+                        : 'Next',
+                    onPressed: _selectedAnswer != null ? _nextQuestion : null,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: CustomButton(
-                text: _currentQuestion == widget.questionCount - 1 ? 'Finish' : 'Next',
-                onPressed: _selectedAnswer != null ? _nextQuestion : null,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-    ],
-  ),
-);
-}
+    );
+  }
 }
 // 9. RESULT SCREEN
 class ResultScreen extends StatelessWidget {
@@ -1358,6 +1380,7 @@ State<AIQuizScreen> createState() => _AIQuizScreenState();
 class _AIQuizScreenState extends State<AIQuizScreen> {
 final TextEditingController _promptController = TextEditingController();
 String _difficulty = 'Medium';
+static const String _backendUrl = 'http://10.12.225.114:5000';
 @override
 Widget build(BuildContext context) {
 return Scaffold(
@@ -1415,7 +1438,7 @@ color: Colors.grey,
 ),
 const SizedBox(height: 24),
 const Text(
-'Enter your topic',
+'Paste your notes',
 style: TextStyle(
 fontSize: 16,
 fontWeight: FontWeight.bold,
@@ -1424,9 +1447,9 @@ fontWeight: FontWeight.bold,
 const SizedBox(height: 12),
 TextField(
 controller: _promptController,
-maxLines: 4,
+maxLines: 8,
 decoration: InputDecoration(
-hintText: 'e.g., "Generate Python programming MCQs about lists and dictionaries"',
+hintText: 'Paste your study notes or content here. AI will generate questions from it.',
 border: OutlineInputBorder(
 borderRadius: BorderRadius.circular(12),
 ),
@@ -1464,39 +1487,119 @@ const SizedBox(height: 40),
 CustomButton(
 text: 'Generate Quiz',
 icon: Icons.auto_awesome,
-onPressed: () {
-showDialog(
-context: context,
-barrierDismissible: false,
-builder: (context) => const Center(
-child: Card(
-child: Padding(
-padding: EdgeInsets.all(24),
-child: Column(
-mainAxisSize: MainAxisSize.min,
-children: [
-CircularProgressIndicator(),
-SizedBox(height: 16),
-Text('Generating your quiz...'),
-],
-),
-),
-),
-),
-);
-            Future.delayed(const Duration(seconds: 2), () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const QuizQuestionScreen(
-                    questionCount: 10,
-                    timerEnabled: true,
-                  ),
-                ),
-              );
-            });
-          },
+onPressed: () async {
+  if (_promptController.text.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please paste some notes first'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+    return;
+  }
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(
+      child: Card(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Generating your quiz...'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  try {
+    final uri = Uri.parse('$_backendUrl/generate-quiz');
+    final response = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'notes': _promptController.text.trim(),
+            'difficulty': _difficulty,
+            'numQuestions': 10,
+          }),
+        )
+        .timeout(const Duration(seconds: 40));
+
+    if (!mounted) return;
+    Navigator.pop(context); // close loading dialog
+
+    if (response.statusCode != 200) {
+      final body = response.body.isNotEmpty ? response.body : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI service error (${response.statusCode}): $body'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final questionsJson = data['questions'] as List<dynamic>? ?? [];
+
+    if (questionsJson.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI did not return any questions'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final questions = questionsJson.map((q) {
+      final map = q as Map<String, dynamic>;
+      return QuizQuestion(
+        question: (map['question'] as String?) ?? '',
+        options: List<String>.from(map['options'] as List<dynamic>? ?? const []),
+        correctAnswer: (map['correctAnswer'] as int?) ?? 0,
+      );
+    }).where((q) => q.question.isNotEmpty && q.options.length >= 2).toList();
+
+    if (questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI returned invalid quiz data'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuizQuestionScreen(
+          questionCount: questions.length,
+          timerEnabled: true,
+          questions: questions,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    Navigator.pop(context); // ensure dialog closed on error
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to generate quiz: $e'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+},
         ),
       ],
     ),
