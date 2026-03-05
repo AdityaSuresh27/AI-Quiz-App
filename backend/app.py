@@ -6,6 +6,8 @@ from email.mime.multipart import MIMEMultipart
 import os
 from dotenv import load_dotenv
 import logging
+import json
+from openai import OpenAI
 
 load_dotenv()
 
@@ -22,7 +24,11 @@ SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "your-app-password")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-logger.info(f"📧 Flask OTP Server Started")
+# OpenAI configuration (for AI quiz generation)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+logger.info("📧 Flask OTP Server Started")
 logger.info(f"📧 Sender Email: {SENDER_EMAIL}")
 
 @app.route('/send-otp', methods=['POST', 'OPTIONS'])
@@ -112,6 +118,117 @@ def send_otp():
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'status': 'error', 'message': f'Error sending email: {str(e)}'}), 500
+
+@app.route('/generate-quiz', methods=['POST', 'OPTIONS'])
+def generate_quiz():
+    """
+    Generate a multiple-choice quiz from pasted notes using OpenAI.
+
+    Request body:
+    {
+        "notes": "full text notes...",
+        "difficulty": "Easy|Medium|Hard",
+        "numQuestions": 10
+    }
+
+    Response:
+    {
+        "title": "string",
+        "questions": [
+            {
+                "question": "string",
+                "options": ["A", "B", "C", "D"],
+                "correctAnswer": 0
+            }
+        ]
+    }
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    if openai_client is None:
+        logger.error("❌ OPENAI_API_KEY is not configured")
+        return jsonify({'error': 'OpenAI API key not configured on server'}), 500
+
+    try:
+        data = request.get_json(silent=True) or {}
+        notes = (data.get('notes') or '').strip()
+        difficulty = (data.get('difficulty') or 'Medium').strip()
+        num_questions = int(data.get('numQuestions') or 10)
+
+        if not notes:
+            return jsonify({'error': 'notes is required'}), 400
+
+        num_questions = max(3, min(num_questions, 25))
+
+        logger.info(f"🧠 Generating quiz | difficulty={difficulty}, num={num_questions}")
+
+        system_prompt = (
+            "You are an expert quiz generator for a learning app. "
+            "Given raw study notes, you create clear multiple-choice questions "
+            "that help users test their understanding."
+        )
+
+        user_prompt = f"""
+Generate exactly {num_questions} multiple-choice questions from the student's notes below.
+
+Difficulty: {difficulty}
+
+Return ONLY valid JSON in this exact shape, with no extra text:
+{{
+  "title": "Short quiz title based on the topic",
+  "questions": [
+    {{
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0
+    }}
+  ]
+}}
+
+Rules:
+- Only 4 options per question.
+- correctAnswer is the zero-based index of the correct option.
+- Questions must be answerable from the notes.
+- Use simple, clear English.
+
+Notes:
+{notes}
+"""
+
+        completion = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+
+        try:
+            content = completion.output[0].content[0].text
+        except Exception as parse_err:
+            logger.error(f"❌ Unexpected OpenAI response format: {parse_err}")
+            logger.debug(f"Raw completion: {completion}")
+            return jsonify({'error': 'Unexpected AI response format'}), 500
+
+        try:
+            quiz = json.loads(content)
+        except json.JSONDecodeError as json_err:
+            logger.error(f"❌ Failed to decode AI JSON: {json_err}")
+            logger.debug(f"AI content: {content}")
+            return jsonify({'error': 'AI returned invalid JSON'}), 500
+
+        # Basic validation
+        if 'questions' not in quiz or not isinstance(quiz['questions'], list):
+            return jsonify({'error': 'AI response missing questions'}), 500
+
+        logger.info(f"✅ Generated quiz with {len(quiz['questions'])} questions")
+        return jsonify(quiz), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error generating quiz: {str(e)}")
+        return jsonify({'error': f'Error generating quiz: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])
 def health():

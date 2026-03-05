@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import 'config.dart';
 import 'widgets.dart';
 import 'models.dart';
+import 'screens.dart';
 
 // 1. CREATE QUIZ SCREEN
 class CreateQuizScreen extends StatefulWidget {
@@ -443,7 +445,7 @@ class _QRDisplayScreenState extends State<QRDisplayScreen> with SingleTickerProv
     );
   }
 }
-// 3. QR SCANNER SCREEN - MOCK VERSION (No Camera)
+// 3. QR SCANNER SCREEN - REAL SCANNER
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({Key? key}) : super(key: key);
 
@@ -451,49 +453,86 @@ class QRScannerScreen extends StatefulWidget {
   State<QRScannerScreen> createState() => _QRScannerScreenState();
 }
 
-class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scanAnimation;
-  bool _isScanning = true;
+class _QRScannerScreenState extends State<QRScannerScreen> {
+  bool _isHandlingResult = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
+  Future<void> _handleBarcode(String rawValue) async {
+    if (_isHandlingResult) return;
+    _isHandlingResult = true;
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+    try {
+      final decoded = jsonDecode(rawValue) as Map<String, dynamic>;
+      final title = decoded['title'] as String? ?? 'Shared Quiz';
+      final questionsJson = decoded['questions'] as List<dynamic>? ?? [];
 
-  void _simulateScan() {
-    setState(() {
-      _isScanning = false;
-    });
+      if (questionsJson.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid quiz data in QR code'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        _isHandlingResult = false;
+        return;
+      }
 
-    // Simulate successful scan after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
+      final questions = questionsJson.map((q) {
+        final map = q as Map<String, dynamic>;
+        return QuizQuestion(
+          question: map['question'] as String? ?? '',
+          options: List<String>.from(map['options'] as List<dynamic>? ?? []),
+          correctAnswer: (map['correctAnswer'] as int?) ?? 0,
+        );
+      }).toList();
+
+      if (questions.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No questions found in this quiz'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        _isHandlingResult = false;
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ Quiz loaded: $title'),
+          backgroundColor: AppColors.accent,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => QuizQuestionScreen(
+            questionCount: questions.length,
+            timerEnabled: true,
+            questions: questions,
+          ),
+        ),
+      );
+    } catch (_) {
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✓ Quiz loaded: Python Programming Basics'),
-            backgroundColor: AppColors.accent,
-            duration: Duration(seconds: 3),
+            content: Text('Failed to read quiz from QR code'),
+            backgroundColor: AppColors.error,
           ),
         );
-        // TODO: Navigate to quiz screen with loaded data
       }
-    });
+      _isHandlingResult = false;
+    }
   }
 
   @override
@@ -507,231 +546,53 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
       ),
       body: Stack(
         children: [
-          // Dark background
-          Container(
-            color: Colors.black,
-          ),
-
-          // Scanner frame in center
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Scanner box
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Scanning frame
-                    Container(
-                      width: 280,
-                      height: 280,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: AppColors.primary,
-                          width: 3,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Stack(
-                        children: [
-                          // Corner decorations
-                          ...List.generate(4, (index) {
-                            final isTop = index < 2;
-                            final isLeft = index % 2 == 0;
-                            return Positioned(
-                              top: isTop ? -3 : null,
-                              bottom: !isTop ? -3 : null,
-                              left: isLeft ? -3 : null,
-                              right: !isLeft ? -3 : null,
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    top: isTop ? BorderSide(color: AppColors.primary, width: 6) : BorderSide.none,
-                                    bottom: !isTop ? BorderSide(color: AppColors.primary, width: 6) : BorderSide.none,
-                                    left: isLeft ? BorderSide(color: AppColors.primary, width: 6) : BorderSide.none,
-                                    right: !isLeft ? BorderSide(color: AppColors.primary, width: 6) : BorderSide.none,
-                                  ),
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: isTop && isLeft ? Radius.circular(20) : Radius.zero,
-                                    topRight: isTop && !isLeft ? Radius.circular(20) : Radius.zero,
-                                    bottomLeft: !isTop && isLeft ? Radius.circular(20) : Radius.zero,
-                                    bottomRight: !isTop && !isLeft ? Radius.circular(20) : Radius.zero,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-
-                          // Scanning line animation
-                          if (_isScanning)
-                            AnimatedBuilder(
-                              animation: _scanAnimation,
-                              builder: (context, child) {
-                                return Positioned(
-                                  top: _scanAnimation.value * 260,
-                                  left: 10,
-                                  right: 10,
-                                  child: Container(
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.accent,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.accent.withOpacity(0.8),
-                                          blurRadius: 10,
-                                          spreadRadius: 2,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-
-                          // QR code placeholder image
-                          Center(
-                            child: Opacity(
-                              opacity: 0.3,
-                              child: Icon(
-                                Icons.qr_code_2,
-                                size: 180,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Success checkmark when scanned
-                    if (!_isScanning)
-                      Container(
-                        width: 280,
-                        height: 280,
-                        decoration: BoxDecoration(
-                          color: AppColors.accent.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.accent.withOpacity(0.5),
-                                  blurRadius: 30,
-                                  spreadRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.check,
-                              size: 60,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 40),
-
-                // Instructions
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Column(
-                    children: [
-                      Icon(
-                        _isScanning ? Icons.qr_code_scanner : Icons.check_circle,
-                        color: _isScanning ? AppColors.primary : AppColors.accent,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _isScanning 
-                            ? 'Position QR code within frame'
-                            : 'QR Code Scanned!',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isScanning
-                            ? 'The QR code will be detected automatically'
-                            : 'Loading quiz...',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          const Positioned.fill(
+            child: MobileScanner(
+              fit: BoxFit.cover,
             ),
           ),
-
-          // Bottom action button
-          Positioned(
-            bottom: 40,
-            left: 20,
-            right: 20,
-            child: _isScanning
-                ? ElevatedButton.icon(
-                    onPressed: _simulateScan,
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text(
-                      'Simulate Scan',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  )
-                : Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.accent,
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          strokeWidth: 3,
-                        ),
-                        SizedBox(width: 16),
-                        Text(
-                          'Loading quiz data...',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          Center(
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.primary,
+                  width: 3,
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text(
+                'Align the quiz QR code within the frame',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: MobileScanner(
+              fit: BoxFit.cover,
+              onDetect: (capture) {
+                final barcode = capture.barcodes.first;
+                final raw = barcode.rawValue;
+                if (raw == null) return;
+                _handleBarcode(raw);
+              },
+            ),
           ),
         ],
       ),
