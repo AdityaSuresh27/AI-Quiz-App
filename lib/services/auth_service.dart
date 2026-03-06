@@ -3,6 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -122,8 +123,7 @@ class AuthService {
       // Send OTP via Flask backend
       // IMPORTANT: Replace IP with your machine IP for local testing
       // OR with Vercel URL for production
-      const String backendUrl = 'http://10.12.225.114:5000'; // Your machine IP - CHANGE THIS if different
-      // For production: 'https://your-app.vercel.app'
+      final String backendUrl = AppConfig.backendUrl;
 
       try {
         print('📧 Sending OTP to Flask: $backendUrl/send-otp');
@@ -199,8 +199,8 @@ class AuthService {
     }
   }
 
-  // Google Sign In
-  Future<UserCredential> signInWithGoogle() async {
+  // Google Sign In — handles PigeonUserDetails type cast bug in firebase_auth 4.x
+  Future<UserCredential?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
@@ -216,44 +216,60 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
+      UserCredential? userCredential;
+      try {
+        userCredential = await _auth.signInWithCredential(credential);
+      } catch (e) {
+        // PigeonUserDetails type cast error — sign-in actually succeeded
+        print('⚠️ Google SignIn Pigeon error (sign-in likely succeeded): $e');
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (_auth.currentUser == null) {
+          throw 'Google sign in failed';
+        }
+      }
+
+      final user = userCredential?.user ?? _auth.currentUser;
+      if (user == null) throw 'Google sign in failed — no user returned';
 
       // Check if user document exists, if not create it
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user?.uid)
-          .get();
+      try {
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
 
-      if (!userDoc.exists) {
-        await _firestore.collection('users').doc(userCredential.user?.uid).set({
-          'uid': userCredential.user?.uid,
-          'email': userCredential.user?.email,
-          'displayName': userCredential.user?.displayName,
-          'photoURL': userCredential.user?.photoURL,
-          'createdAt': DateTime.now(),
-          'updatedAt': DateTime.now(),
-          'authMethod': 'google',
-          'isEmailVerified': userCredential.user?.emailVerified ?? false,
-        });
-      } else {
-        // Update last login
-        await _firestore.collection('users').doc(userCredential.user?.uid).update({
-          'updatedAt': DateTime.now(),
-          'lastLogin': DateTime.now(),
-        });
+        if (!userDoc.exists) {
+          await _firestore.collection('users').doc(user.uid).set({
+            'uid': user.uid,
+            'email': user.email,
+            'displayName': user.displayName,
+            'photoURL': user.photoURL,
+            'createdAt': DateTime.now(),
+            'updatedAt': DateTime.now(),
+            'authMethod': 'google',
+            'isEmailVerified': user.emailVerified,
+          });
+        } else {
+          await _firestore.collection('users').doc(user.uid).update({
+            'updatedAt': DateTime.now(),
+            'lastLogin': DateTime.now(),
+          });
+        }
+      } catch (e) {
+        print('⚠️ Firestore user doc update error (non-fatal): $e');
       }
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
+      // Check if sign-in actually succeeded despite the error
+      if (_auth.currentUser != null) {
+        return null; // Success despite Pigeon error
+      }
       throw 'Google sign in failed: $e';
     }
   }
 
   // Google Sign Up (same as sign in for Google)
-  Future<UserCredential> signUpWithGoogle() async {
+  Future<UserCredential?> signUpWithGoogle() async {
     return signInWithGoogle();
   }
 

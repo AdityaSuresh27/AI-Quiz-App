@@ -1,4 +1,6 @@
-Flask==2.3.0
+Flask==2.3.3
+Werkzeug==2.3.7
 Flask-CORS==4.0.0
-python-dotenv==1.0.0
-openai>=1.0.0
+python-dotenv==1.0.1
+# openai.responses.create (used in app.py) requires >=1.66.0
+openai>=1.66.0

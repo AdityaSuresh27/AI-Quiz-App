@@ -4,50 +4,65 @@ import 'config.dart';
 import 'models.dart';
 import 'screens.dart';
 
-// Custom Button with animation
+// Custom Button with gradient and animation
 class CustomButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final bool outlined;
 
   const CustomButton({
     Key? key,
     required this.text,
     this.onPressed,
     this.icon,
+    this.outlined = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      child: ElevatedButton(
+    if (outlined) {
+      return OutlinedButton(
         onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
           padding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-          shadowColor: Colors.transparent,
+          side: const BorderSide(color: AppColors.primary, width: 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              text,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
-            ),
+            if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+            Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+          ],
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        gradient: onPressed != null ? AppColors.primaryGradient : null,
+        color: onPressed == null ? Colors.grey[400] : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: onPressed != null
+            ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 6))]
+            : null,
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+            Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
           ],
         ),
       ),

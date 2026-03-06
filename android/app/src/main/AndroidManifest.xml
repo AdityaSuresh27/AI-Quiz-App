@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for Firebase, OTP backend, and all network calls in ALL build types -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Required for QR code scanner (mobile_scanner) -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="quiz_app"
         android:name="${applicationName}"

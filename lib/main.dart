@@ -6,7 +6,6 @@ import 'firebase_options.dart';
 import 'config.dart';
 import 'screens.dart';
 import 'services/auth_provider.dart';
-import 'auth/auth_screens.dart' as auth_screens;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +46,7 @@ class QuizApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.isDark ? ThemeMode.dark : ThemeMode.light,
-          home: authProvider.isLoggedIn ? const HomeScreen() : const auth_screens.LoginScreen(),
+          home: const SplashScreen(),
         );
       },
     );

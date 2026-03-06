@@ -180,3 +180,11 @@ class AppTheme {
     ),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Backend URL — single source of truth for the Vercel-deployed backend.
+// To update: change the URL below and rebuild the APK.
+// ---------------------------------------------------------------------------
+class AppConfig {
+  static const String backendUrl = 'https://smart-quiz-api-lyart.vercel.app';
+}

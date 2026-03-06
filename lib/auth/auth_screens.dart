@@ -43,6 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                const AppLogo(size: 80, lightMode: true),
+                const SizedBox(height: 28),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(
@@ -51,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 const Text(
                   'Sign in to continue learning',
                   style: TextStyle(fontSize: 16, color: Colors.white70),
@@ -121,12 +123,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     );
 
                                     if (success && mounted) {
-                                      Navigator.pushReplacement(
+                                      Navigator.pushAndRemoveUntil(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                              const HomeScreen(),
+                                              const MainScreen(),
                                         ),
+                                        (route) => false,
                                       );
                                     }
                                   },
@@ -166,12 +169,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     bool success =
                                         await authProvider.signInWithGoogle();
                                     if (success && mounted) {
-                                      Navigator.pushReplacement(
+                                      Navigator.pushAndRemoveUntil(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                              const HomeScreen(),
+                                              const MainScreen(),
                                         ),
+                                        (route) => false,
                                       );
                                     }
                                   },
@@ -302,12 +306,12 @@ class _SignupScreenState extends State<SignupScreen> {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 const Text(
                   'Join us to start learning',
                   style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 24),
                 CustomTextField(
                   hint: 'Full Name',
                   icon: Icons.person,
@@ -529,12 +533,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                     bool success =
                                         await authProvider.signUpWithGoogle();
                                     if (success && mounted) {
-                                      Navigator.pushReplacement(
+                                      Navigator.pushAndRemoveUntil(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                              const HomeScreen(),
+                                              const MainScreen(),
                                         ),
+                                        (route) => false,
                                       );
                                     }
                                   },
@@ -607,11 +612,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    // Send OTP on screen load
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sendOTP();
-    });
-
+    // OTP already sent from SignupScreen — do NOT send again here.
     // Show resend button after 30 seconds
     Future.delayed(const Duration(seconds: 30), () {
       if (mounted) {
@@ -623,13 +624,14 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   }
 
   void _sendOTP() async {
+    // Called only by the Resend button
     final authProvider = context.read<AuthProvider>();
     await authProvider.sendOTP(email: widget.email);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('OTP sent to your email!'),
+          content: Text('New OTP sent to your email!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -819,7 +821,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                     Navigator.pushAndRemoveUntil(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const HomeScreen(),
+                                        builder: (context) => const MainScreen(),
                                       ),
                                       (route) => false,
                                     );
