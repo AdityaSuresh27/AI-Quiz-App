@@ -46,6 +46,7 @@ app.*.map.json
 # ⚠️ FIREBASE CONFIGURATION - NEVER PUSH TO GITHUB ⚠️
 # Each developer must have their own local copy
 android/app/google-services.json
+google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
 
